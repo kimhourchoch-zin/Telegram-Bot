@@ -48,12 +48,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = storage.find_user(chat_id)
     if not user:
-        user = storage.create_user(chat_id, username)
+        storage.create_user(chat_id, username)
 
-    if user.get("name") and user.get("project"):
-        await update.message.reply_text("Welcome back! You're already set up.")
-    else:
-        await update.message.reply_text("Welcome!\nPlease enter your name:")
+    await update.message.reply_text("Welcome! I am your AI Chatbot and Daily Reporter. Use /setup if you want to configure daily reporting, or just start chatting!")
+
+async def setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _log_request(update, "COMMAND /setup")
+    chat_id = str(update.effective_chat.id)
+    username = update.effective_user.username or update.effective_user.first_name
+
+    user = storage.find_user(chat_id)
+    if not user:
+        storage.create_user(chat_id, username)
+
+    storage.update_user(chat_id, "name", None)
+    storage.update_user(chat_id, "project", None)
+    storage.update_user(chat_id, "step", "ASK_NAME")
+    await update.message.reply_text("Let's set up your profile for daily reports!\nPlease enter your name:")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _log_request(update, "MESSAGE")
@@ -62,17 +73,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = storage.find_user(chat_id)
 
     if not user:
-        return await update.message.reply_text("Use /start first")
+        user = storage.create_user(chat_id, update.effective_user.username or update.effective_user.first_name)
 
-    if not user.get("name"):
+    step = user.get("step")
+
+    if step == "ASK_NAME":
         storage.update_user(chat_id, "name", text)
         storage.update_user(chat_id, "step", "ASK_PROJECT")
         return await update.message.reply_text("Got it!\nNow enter your project:")
 
-    if not user.get("project"):
+    if step == "ASK_PROJECT":
         storage.update_user(chat_id, "project", text)
         storage.update_user(chat_id, "step", "READY")
-        return await update.message.reply_text("Setup complete!")
+        return await update.message.reply_text("Setup complete! You can now log tasks or chat with me.")
 
     # Process report OR Chat
     match = re.search(r"(\d+)%?$", text)
@@ -90,6 +103,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.chat.send_action(action="typing")
         reply = await ask_groq(text)
         return await update.message.reply_text(reply)
+
+    if not user.get("name") or not user.get("project"):
+        return await update.message.reply_text("You haven't set up your profile for tracking tasks yet. Please use /setup first.")
 
     status_text = "Completed" if percent == 100 else "In Progress"
 

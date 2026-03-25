@@ -3,7 +3,7 @@ import logging
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import asyncio
-from src.bot.handlers import start, handle_message, show, reset, profile, clear
+from src.bot.handlers import start, handle_message, show, reset, profile, clear, setup
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
@@ -22,6 +22,7 @@ def run():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("setup", setup))
     app.add_handler(CommandHandler("show", show))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("profile", profile))

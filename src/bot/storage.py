@@ -47,7 +47,7 @@ def create_user(chat_id: str, username: str) -> Dict[str, Any]:
         "username": username,
         "name": None,
         "project": None,
-        "step": "ASK_NAME",
+        "step": "NONE",
         "created_at": None # Replace with datetime.now().isoformat()
     }
     data.append(new_user)
