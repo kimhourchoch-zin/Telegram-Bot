@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def run():
+def run():
     if not TOKEN:
         logger.error("No TOKEN provided!")
         return
@@ -24,4 +24,4 @@ async def run():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Starting bot...")
-    await app.run_polling()
+    app.run_polling()
