@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
@@ -13,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def run():
+async def run():
     if not TOKEN:
         logger.error("No TOKEN provided!")
         return
@@ -24,4 +25,4 @@ def run():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Starting bot...")
-    app.run_polling()
+    await app.run_polling()
