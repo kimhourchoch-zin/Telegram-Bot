@@ -102,3 +102,10 @@ def save_report(user: Dict[str, Any], task: str, percent: int, status: str, date
     
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
+
+def clear_today_report(user: Dict[str, Any], date: str):
+    _ensure_dir(REPORTS_DIR)
+    filename = f"{user['name'].lower().replace(' ', '-')}-{date}.json"
+    filepath = REPORTS_DIR / filename
+    if filepath.exists():
+        filepath.unlink()
