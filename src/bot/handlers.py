@@ -1,5 +1,7 @@
 import logging
 import re
+import os
+import httpx
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -13,6 +15,31 @@ def _log_request(update: Update, action: str):
         f"chat_id={update.effective_chat.id} user={user.username or user.first_name} "
         f"action={action} text=\"{update.message.text}\""
     )
+
+async def ask_groq(prompt: str) -> str:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return "Internal Error: GROQ_API_KEY is not configured."
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 2048
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=data, timeout=30.0)
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.error(f"Groq API error: {e}")
+        return "Sorry, I couldn't reach the AI at the moment."
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _log_request(update, "COMMAND /start")
@@ -47,13 +74,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         storage.update_user(chat_id, "step", "READY")
         return await update.message.reply_text("Setup complete!")
 
-    # Process report
+    # Process report OR Chat
     match = re.search(r"(\d+)%?$", text)
-    percent = int(match.group(1)) if match else 0
+    
+    if not match:
+        await update.message.chat.send_action(action="typing")
+        reply = await ask_groq(text)
+        return await update.message.reply_text(reply)
+
+    percent = int(match.group(1))
     task = re.sub(r"\s*(\d+)%?$", "", text).strip()
 
     if not task:
-        return await update.message.reply_text("Please include a task description, e.g. fixed bugs 100%")
+        # If it's just a number without task text, also treat as chat
+        await update.message.chat.send_action(action="typing")
+        reply = await ask_groq(text)
+        return await update.message.reply_text(reply)
 
     status_text = "Completed" if percent == 100 else "In Progress"
 
@@ -120,7 +156,7 @@ async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     completed = [t for t in tasks if t["status"] == "Completed"]
     in_progress = [t for t in tasks if t["status"] == "In Progress"]
     
-    sep = "\u2501" * 24
+    sep = ""
     lines = []
     lines.append("DAILY PROGRESS REPORT")
     lines.append(sep)
