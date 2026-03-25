@@ -16,7 +16,7 @@ def _log_request(update: Update, action: str):
         f"action={action} text=\"{update.message.text}\""
     )
 
-async def ask_groq(prompt: str) -> str:
+async def ask_groq(user: dict, prompt: str) -> str:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         return "Internal Error: GROQ_API_KEY is not configured."
@@ -25,9 +25,22 @@ async def ask_groq(prompt: str) -> str:
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
+
+    system_content = "You are a friendly and helpful AI assistant."
+    if user.get("name"):
+        system_content += f" The user's name is {user.get('name')}."
+    if user.get("project"):
+        system_content += f" The user is working on a project named {user.get('project')}."
+
+    messages = [{"role": "system", "content": system_content}]
+    
+    history = user.get("chat_history", [])
+    messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
+
     data = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "max_tokens": 2048
     }
     
@@ -36,7 +49,13 @@ async def ask_groq(prompt: str) -> str:
             response = await client.post(url, headers=headers, json=data, timeout=30.0)
             response.raise_for_status()
             result = response.json()
-            return result["choices"][0]["message"]["content"]
+            reply = result["choices"][0]["message"]["content"]
+
+            history.append({"role": "user", "content": prompt})
+            history.append({"role": "assistant", "content": reply})
+            storage.update_user(user["chat_id"], "chat_history", history[-20:])
+
+            return reply
     except Exception as e:
         logger.error(f"Groq API error: {e}")
         return "Sorry, I couldn't reach the AI at the moment."
@@ -92,7 +111,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not match:
         await update.message.chat.send_action(action="typing")
-        reply = await ask_groq(text)
+        reply = await ask_groq(user, text)
         return await update.message.reply_text(reply)
 
     percent = int(match.group(1))
@@ -101,7 +120,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not task:
         # If it's just a number without task text, also treat as chat
         await update.message.chat.send_action(action="typing")
-        reply = await ask_groq(text)
+        reply = await ask_groq(user, text)
         return await update.message.reply_text(reply)
 
     if not user.get("name") or not user.get("project"):
