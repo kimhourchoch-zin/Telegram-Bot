@@ -26,7 +26,10 @@ async def ask_groq(user: dict, prompt: str) -> str:
         "Content-Type": "application/json"
     }
 
-    system_content = "You are a friendly and helpful AI assistant."
+    system_content = (
+        "You are an expert, highly capable AI assistant powered by state-of-the-art models. "
+        "Provide accurate, insightful, and well-structured answers."
+    )
     if user.get("name"):
         system_content += f" The user's name is {user.get('name')}."
     if user.get("project"):
